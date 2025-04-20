@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import {
   View,
   Text,
@@ -8,18 +8,41 @@ import {
   StyleSheet,
   KeyboardAvoidingView,
   Platform,
+  Alert,
 } from 'react-native';
+import { useNavigation, useFocusEffect } from '@react-navigation/native';
+import RNBluetoothClassic from 'react-native-bluetooth-classic';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+
 
 export default function ChatScreen({ route }) {
+  const navigation = useNavigation();
   const { device, isServer } = route.params;
 
   const [messages, setMessages] = useState([]);
   const [inputText, setInputText] = useState('');
+  const screenIsActive = useRef(true); 
   const [readSubscription, setReadSubscription] = useState(null);
+  const [disconnectSubscription, setDisconnectSubscription] = useState(null);
+  const flatListRef = useRef(null);
 
+  const loadMessages = async () => {
+    try {
+      const stored = await AsyncStorage.getItem(`chat_${device.address}`);
+      if (stored) {
+        setMessages(JSON.parse(stored));
+      }
+    } catch (err) {
+      console.warn('Erro ao carregar mensagens:', err);
+    }
+  };
+  
   const formatTimestamp = () => {
     const now = new Date();
-    return `${now.toLocaleDateString()} ${now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
+    return `${now.toLocaleDateString()} ${now.toLocaleTimeString([], {
+      hour: '2-digit',
+      minute: '2-digit',
+    })}`;
   };
 
   const sendMessage = async () => {
@@ -41,8 +64,25 @@ export default function ChatScreen({ route }) {
     }
   };
 
+  const disconnect = async () => {
+    try {
+      const connected = await device?.isConnected();
+      if (connected) {
+        await device.disconnect();
+      }
+    } catch (error) {
+      console.warn('Erro ao desconectar:', error.message);
+    }
+  };
+
   useEffect(() => {
-    const subscription = device.onDataReceived((event) => {
+    screenIsActive.current = true;
+
+    if (!device) return;
+
+    loadMessages();
+
+    const readSub = device.onDataReceived((event) => {
       try {
         const data = JSON.parse(event.data.trim());
         const receivedMessage = {
@@ -56,15 +96,88 @@ export default function ChatScreen({ route }) {
         console.error('Erro ao processar mensagem recebida:', e);
       }
     });
+    setReadSubscription(readSub);
 
-    setReadSubscription(subscription);
-
-    return () => {
-      if (readSubscription) {
-        readSubscription.remove();
+    const handleDisconnect = async () => {
+      try {
+        const stillConnected = await device.isConnected();
+        if (stillConnected) return;
+  
+        if (screenIsActive.current) {
+          Alert.alert('Desconectado', 'O outro dispositivo saiu do chat.', [
+            {
+              text: 'OK',
+              onPress: () => {
+                if (navigation.canGoBack()) {
+                  navigation.goBack();
+                }
+              },
+            },
+          ]);
+        }
+      } catch (err) {
+        console.warn('Erro ao verificar conexão após desconexão:', err);
       }
     };
-  }, []);
+  
+    const discSub = RNBluetoothClassic.onDeviceDisconnected(handleDisconnect);
+    setDisconnectSubscription(discSub);
+
+    return () => {
+      screenIsActive.current = false;
+      readSub?.remove();
+      discSub?.remove();
+    };
+  }, [device]);
+
+  useEffect(() => {
+    if (flatListRef.current) {
+      flatListRef.current.scrollToEnd({ animated: true });
+    }
+  }, [messages]);
+
+  useEffect(() => {
+    const saveMessages = async () => {
+      try {
+        await AsyncStorage.setItem(
+          `chat_${device.address}`,
+          JSON.stringify(messages)
+        );
+      } catch (err) {
+        console.warn('Erro ao salvar mensagens:', err);
+      }
+    };
+  
+    saveMessages();
+  }, [messages]);
+  
+  
+
+  useFocusEffect(
+    React.useCallback(() => {
+      const onBeforeRemove = (e) => {
+        e.preventDefault();
+
+        Alert.alert('Sair do chat', 'Deseja desconectar e sair do chat?', [
+          { text: 'Cancelar', style: 'cancel' },
+          {
+            text: 'Sair',
+            style: 'destructive',
+            onPress: async () => {
+              // remove listener para evitar loop
+              screenIsActive.current = false;
+              await disconnect();
+              navigation.dispatch(e.data.action); // agora pode sair
+            },
+          },
+        ]);
+      };
+
+      const unsubscribe = navigation.addListener('beforeRemove', onBeforeRemove);
+
+      return () => unsubscribe();
+    }, [navigation, disconnect])
+  );
 
   const renderItem = ({ item }) => (
     <View
@@ -87,11 +200,14 @@ export default function ChatScreen({ route }) {
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
       <FlatList
+        ref={flatListRef}
         data={messages}
         keyExtractor={(item) => item.id}
         renderItem={renderItem}
         contentContainerStyle={styles.chatContainer}
+        onContentSizeChange={() => flatListRef.current?.scrollToEnd({ animated: true })}
       />
+
 
       <View style={styles.inputContainer}>
         <TextInput
@@ -137,16 +253,15 @@ const styles = StyleSheet.create({
     backgroundColor: '#eee',
     alignSelf: 'flex-start',
   },
+  messageText: { fontSize: 16 },
   sender: {
     fontWeight: 'bold',
-    fontSize: 12,
-    marginBottom: 2,
+    marginBottom: 3,
+    fontSize: 14,
   },
   timestamp: {
-    fontSize: 10,
-    color: '#999',
-    marginTop: 4,
-    alignSelf: 'flex-end',
+    fontSize: 12,
+    color: '#555',
+    marginTop: 3,
   },
-  messageText: { fontSize: 16 },
 });
