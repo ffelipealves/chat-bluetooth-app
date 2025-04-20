@@ -12,7 +12,7 @@ export default function ServerScreen({ navigation }){
       const device = await RNBluetoothClassic.accept({});
       setConnectedDevice(device);
       Alert.alert('Dispositivo conectado', `Conectado com: ${device.name || device.address}`);
-      navigation.navigate('Chat')
+      navigation.navigate('Chat', { device, isServer: true })
     } catch (error) {
       console.error('Erro ao aceitar conexão:', error);
       Alert.alert('Erro', 'Falha ao aceitar conexão');

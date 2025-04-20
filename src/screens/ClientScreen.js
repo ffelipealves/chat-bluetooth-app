@@ -102,7 +102,7 @@ export default function ClientScreen({ navigation }) {
       setConnected(true);
       setPairedDevice(device);
       Alert.alert('Conectado', `Conectado com: ${device.name || device.address}`);
-      navigation.navigate('Chat')
+      navigation.navigate('Chat', { device, isServer: false })
     } catch (error) {
       console.error('Erro ao conectar:', error);
       Alert.alert('Erro', 'Não foi possível conectar ao dispositivo.');
