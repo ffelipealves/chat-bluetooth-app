@@ -3,6 +3,10 @@
 Este é um aplicativo de chat local desenvolvido com **React Native** (sem Expo), que permite a comunicação via **Bluetooth clássico** entre dois dispositivos Android. Um atua como "servidor", outro como "cliente". É possível enviar mensagens de texto e áudios curtos.
 
 ---
+## 📱 Telas
+![Tela de bluetooth](./assets/telas1.jpeg)
+![Tela de chat](./assets/telas2.jpeg)
+
 
 ## 🚀 Funcionalidades
 
