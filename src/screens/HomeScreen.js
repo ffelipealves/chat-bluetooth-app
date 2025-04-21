@@ -32,7 +32,10 @@ export default function HomeScreen({ navigation }) {
           PermissionsAndroid.PERMISSIONS.BLUETOOTH_ADMIN,
           PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION,
           PermissionsAndroid.PERMISSIONS.BLUETOOTH_CONNECT,
-          PermissionsAndroid.PERMISSIONS.BLUETOOTH_SCAN
+          PermissionsAndroid.PERMISSIONS.BLUETOOTH_SCAN,
+          PermissionsAndroid.PERMISSIONS.WRITE_EXTERNAL_STORAGE,
+          PermissionsAndroid.PERMISSIONS.READ_EXTERNAL_STORAGE,
+          PermissionsAndroid.PERMISSIONS.RECORD_AUDIO,
         ]);
   
         const allGranted = Object.values(granted).every(p => p === PermissionsAndroid.RESULTS.GRANTED);
