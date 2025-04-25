@@ -3,6 +3,7 @@ import { View, Text, Button, StyleSheet, Alert, Platform, PermissionsAndroid } f
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import RNBluetoothClassic from 'react-native-bluetooth-classic';
 
+
 export default function HomeScreen({ navigation }) {
 
 
@@ -36,6 +37,9 @@ export default function HomeScreen({ navigation }) {
           PermissionsAndroid.PERMISSIONS.WRITE_EXTERNAL_STORAGE,
           PermissionsAndroid.PERMISSIONS.READ_EXTERNAL_STORAGE,
           PermissionsAndroid.PERMISSIONS.RECORD_AUDIO,
+          PermissionsAndroid.PERMISSIONS.READ_MEDIA_IMAGES,
+          PermissionsAndroid.PERMISSIONS.CAMERA,
+
         ]);
   
         const allGranted = Object.values(granted).every(p => p === PermissionsAndroid.RESULTS.GRANTED);
