@@ -23,20 +23,6 @@ export default function ClientScreen({ navigation }) {
     loadPairedDevices(); // Carrega os pareados ao iniciar
   }, []);
 
-  const requestLocationPermission = async () => {
-    const granted = await PermissionsAndroid.request(
-      PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION,
-      {
-        title: 'Permissão de localização',
-        message: 'Necessário para descobrir dispositivos Bluetooth próximos.',
-        buttonNeutral: 'Pergunte-me depois',
-        buttonNegative: 'Cancelar',
-        buttonPositive: 'OK',
-      }
-    );
-    return granted === PermissionsAndroid.RESULTS.GRANTED;
-  };
-
   const loadPairedDevices = async () => {
     try {
       const bonded = await RNBluetoothClassic.getBondedDevices();
@@ -48,11 +34,6 @@ export default function ClientScreen({ navigation }) {
   };
 
   const startDiscovery = async () => {
-    const permissionGranted = await requestLocationPermission();
-    if (!permissionGranted) {
-      alert('Permissão de localização negada');
-      return;
-    }
     setDiscovering(true);
     try {
       const unpairedDevices = await RNBluetoothClassic.startDiscovery();

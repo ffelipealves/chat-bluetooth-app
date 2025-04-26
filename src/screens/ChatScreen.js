@@ -15,10 +15,13 @@ import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import RNBluetoothClassic from 'react-native-bluetooth-classic';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { launchImageLibrary, launchCamera } from 'react-native-image-picker';
-import AudioRecorderPlayer from 'react-native-audio-recorder-player';
+import { AudioEncoderAndroidType, AudioSourceAndroidType, AVModeIOSOption, AVEncodingOption, AVEncoderAudioQualityIOSType } from 'react-native-audio-recorder-player';
 import RNFS from 'react-native-fs';
+import AudioRecorderPlayer from 'react-native-audio-recorder-player';
 import Sound from 'react-native-sound';
-
+import { openAudioPlayer } from './utils/openAudioPlayer';
+import { saveBase64ToVideoFile } from './utils/saveBase64ToVideoFile';
+import Video from 'react-native-video';
 
 export default function ChatScreen({ route }) {
   const navigation = useNavigation();
@@ -31,13 +34,23 @@ export default function ChatScreen({ route }) {
   const [disconnectSubscription, setDisconnectSubscription] = useState(null);
   const flatListRef = useRef(null);
   const audioRecorderPlayerRef = useRef(new AudioRecorderPlayer());
+  
 
   const [isRecording, setIsRecording] = useState(false);
   const [recordedAudioPath, setRecordedAudioPath] = useState(null);
   const [isModalVisible, setModalVisible] = useState(false);
   const [currentAudioPath, setCurrentAudioPath] = useState(null);
   const [isPlaying, setIsPlaying] = useState(false);
+  
 
+  const [videoUri, setVideoUri] = useState(null);
+
+  const handlePlayVideo = async (base64AudioVideo) => {
+    const savedPath = await saveBase64ToVideoFile(base64AudioVideo);
+    if (savedPath) {
+      setVideoUri(`file://${savedPath}`);
+    }
+  };
 
   const formatTimestamp = () => {
     const now = new Date();
@@ -86,40 +99,73 @@ export default function ChatScreen({ route }) {
   };
 
   const toggleRecording = async () => {
-    const player = audioRecorderPlayerRef.current;
-
     if (!isRecording) {
-      try {
-        const result = await player.startRecorder(`${RNFS.DocumentDirectoryPath}/gravado.aac`);
-        setRecordedAudioPath(result);
-        setIsRecording(true);
-      } catch (error) {
-        console.error('Erro ao iniciar gravação:', error);
-      }
+      await startRecording();
     } else {
-      try {
-        await player.stopRecorder();
-        setIsRecording(false);
-      } catch (error) {
-        console.error('Erro ao parar gravação:', error);
-      }
+      await stopRecording();
     }
   };
-
+  
+  const startRecording = async () => {
+    const player = audioRecorderPlayerRef.current;
+    try {
+      const path = `${RNFS.DocumentDirectoryPath}/gravado.m4a`;
+  
+      // Apaga o arquivo anterior, se existir
+      const fileExists = await RNFS.exists(path);
+      if (fileExists) {
+        await RNFS.unlink(path);
+        console.log('🧹 Arquivo anterior apagado.');
+      }
+      
+      const audioSet = {
+        AudioEncoderAndroid: AudioRecorderPlayer.AAC,
+        AudioSourceAndroid: AudioRecorderPlayer.MIC,
+        OutputFormatAndroid: AudioRecorderPlayer.MPEG_4,
+        AVEncoderAudioQualityKeyIOS: AudioRecorderPlayer.AVAudioQualityHigh,
+        AVNumberOfChannelsKeyIOS: 2,
+        AVFormatIDKeyIOS: AudioRecorderPlayer.AAC,
+      };
+  
+      const result = await player.startRecorder(path, audioSet);
+      setRecordedAudioPath(result);
+      setIsRecording(true);
+      console.log('🎙️ Gravando:', result);
+    } catch (error) {
+      console.error('❌ Erro ao iniciar gravação:', error);
+    }
+  };
+  
+  const stopRecording = async () => {
+    const player = audioRecorderPlayerRef.current;
+    try {
+      await player.stopRecorder();
+      setIsRecording(false);
+      console.log('🛑 Gravação parada');
+    } catch (error) {
+      console.error('❌ Erro ao parar gravação:', error);
+    }
+  };
+  
   const sendAudio = async () => {
     const player = audioRecorderPlayerRef.current;
   
     try {
       if (!recordedAudioPath) {
-        console.warn('Caminho do áudio gravado está vazio.');
+        console.warn('⚠️ Caminho do áudio gravado está vazio.');
         return;
       }
   
-      console.log('Caminho do áudio gravado:', recordedAudioPath);
+      // Garante que não tem gravação ativa
+      await player.stopRecorder();
+  
+      // Pequena pausa para o sistema fechar o arquivo
+      await new Promise(resolve => setTimeout(resolve, 100));
   
       const fileData = await RNFS.readFile(recordedAudioPath, 'base64');
-      console.log('Tamanho do Base64 antes do envio:', fileData.length);
-      console.log('Trecho inicial do Base64:', fileData.substring(0, 100)); // apenas os primeiros caracteres
+  
+      //console.log('🎧 Base64 do áudio:', fileData.substring(0, 100)); // Conferir trecho
+      //console.log('📏 Tamanho do Base64:', fileData.length);
   
       const audioMessage = {
         id: Date.now().toString(),
@@ -128,23 +174,30 @@ export default function ChatScreen({ route }) {
         sender: isServer ? 'Servidor' : 'Cliente',
         timestamp: formatTimestamp(),
       };
-  
+      console.log(audioMessage);
       await device.write(JSON.stringify(audioMessage) + '\n', 'utf-8');
-      console.log('✅ Áudio enviado com sucesso via Bluetooth');
+      console.log('✅ Áudio enviado via Bluetooth');
   
-      setMessages((prev) => [...prev, audioMessage]);
+      setMessages(prev => [...prev, audioMessage]);
     } catch (error) {
       console.error('❌ Erro ao enviar áudio:', error);
     } finally {
-      await player.stopRecorder();
-      setIsRecording(false);
+      // Apaga o arquivo após envio
+      if (recordedAudioPath) {
+        const exists = await RNFS.exists(recordedAudioPath);
+        if (exists) {
+          await RNFS.unlink(recordedAudioPath);
+          console.log('🧹 Arquivo de áudio apagado.');
+        }
+      }
       setRecordedAudioPath(null);
+      setIsRecording(false)
     }
   };
   
-  const openAudioPlayer = async (base64, timestamp) => {
+  
+  
 
-};
 
   const sendImage = async () => {
     Alert.alert(
@@ -173,7 +226,7 @@ export default function ChatScreen({ route }) {
               data: imageBase64,
               timestamp: formatTimestamp(),
             };
-  
+            console.log(imageMessage)
             try {
               await device.write(JSON.stringify(imageMessage) + '\n', 'utf-8');
               setMessages((prev) => [...prev, imageMessage]);
@@ -204,7 +257,7 @@ export default function ChatScreen({ route }) {
               data: imageBase64,
               timestamp: formatTimestamp(),
             };
-  
+            console.log(imageMessage)
             try {
               await device.write(JSON.stringify(imageMessage) + '\n', 'utf-8');
               setMessages((prev) => [...prev, imageMessage]);
@@ -254,22 +307,6 @@ export default function ChatScreen({ route }) {
           base64: data.base64 || '',
           timestamp: data.timestamp,
         };
-  
-        if (receivedMessage.type === 'audio') {
-          console.log('📥 Áudio recebido!');
-          console.log('🔍 Tamanho do Base64:', receivedMessage.base64?.length);
-          console.log('🔍 Trecho inicial do Base64:', receivedMessage.base64?.substring(0, 100));
-          
-          const audioFilePath = `${RNFS.DocumentDirectoryPath}/audio_received_${data.timestamp}.aac`;
-  
-          // Salva o áudio recebido em um arquivo local
-          try {
-            await RNFS.writeFile(audioFilePath, receivedMessage.base64, 'base64');
-            console.log('✅ Áudio salvo com sucesso no caminho:', audioFilePath);
-          } catch (error) {
-            console.error('❌ Erro ao salvar áudio recebido:', error);
-          }
-        }
   
         setMessages((prev) => [...prev, receivedMessage]);
       } catch (e) {
@@ -366,7 +403,7 @@ export default function ChatScreen({ route }) {
           style={{ width: 200, height: 200, borderRadius: 10 }}
         />
       ) : item.type === 'audio' ? (
-        <TouchableOpacity onPress={() => openAudioPlayer(item.base64, item.timestamp)}>
+        <TouchableOpacity onPress={() => handlePlayVideo(item.base64)}>
           <Text style={{ color: 'blue' }}>▶️ Ouvir áudio</Text>
         </TouchableOpacity>
       ) : (
@@ -395,6 +432,16 @@ export default function ChatScreen({ route }) {
         <TouchableOpacity style={styles.iconButton} onPress={toggleRecording}>
           <Text style={styles.buttonText}>{isRecording ? '⏹️' : '🎤'}</Text>
         </TouchableOpacity>
+
+        {videoUri && (
+        <Video
+          source={{ uri: videoUri }}
+          style={styles.video}
+          controls
+          resizeMode="contain"
+          paused={false}
+        />
+        )}
 
         <TextInput
           value={inputText}
