@@ -1,13 +1,21 @@
 import * as React from 'react';
-import { NavigationContainer } from '@react-navigation/native';
-import { createNativeStackNavigator } from '@react-navigation/native-stack';
+import {NavigationContainer} from '@react-navigation/native';
+import {createNativeStackNavigator} from '@react-navigation/native-stack';
 
 import HomeScreen from './src/screens/HomeScreen';
 import ServerScreen from './src/screens/ServerScreen';
 import ClientScreen from './src/screens/ClientScreen';
 import ChatScreen from './src/screens/ChatScreen';
 
-const Stack = createNativeStackNavigator();
+// Definindo os tipos das rotas
+export type RootStackParamList = {
+  Home: undefined;
+  Servidor: undefined;
+  Cliente: undefined;
+  Chat: {device: any; isServer: boolean}; // A tela Chat espera os parâmetros 'device' e 'isServer'
+};
+
+const Stack = createNativeStackNavigator<RootStackParamList>();
 
 export default function App() {
   return (
